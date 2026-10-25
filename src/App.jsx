@@ -68,6 +68,12 @@ export default function App() {
     return matchesQuery(card, query)
   }), [cards, query, sourceFilter, starredOnly, activeTag])
 
+  // 馆藏编号：按入库先后（createdAt 升序）一次性分配，与筛选结果和展示顺序无关
+  const cardNumbers = useMemo(() => {
+    const ordered = [...cards].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
+    return new Map(ordered.map((card, index) => [card.id, index + 1]))
+  }, [cards])
+
   const activeCard = cards.find((card) => card.id === activeId) || null
   const starredCount = cards.filter((card) => card.starred).length
   const filtering = Boolean(query.trim() || starredOnly || sourceFilter !== 'all' || activeTag)
@@ -124,7 +130,7 @@ export default function App() {
           </div>
 
           {visibleCards.length ? (
-            <div className="archive-grid">{visibleCards.map((card, index) => <DehydratedCard key={card.id} card={card} index={index} onOpen={setActiveId} onToggleStar={toggleStar} onToggleTag={toggleTag} activeTag={activeTag} />)}</div>
+            <div className="archive-grid">{visibleCards.map((card, index) => <DehydratedCard key={card.id} card={card} index={index} number={cardNumbers.get(card.id)} onOpen={setActiveId} onToggleStar={toggleStar} onToggleTag={toggleTag} activeTag={activeTag} />)}</div>
           ) : <EmptyState onClearFilters={clearFilters} />}
         </section>
       </main>

@@ -1,9 +1,9 @@
 import { ArrowUpRight, Star } from 'lucide-react'
 import { SOURCE_TYPES } from '../lib/constants'
 
-export default function DehydratedCard({ card, index, onOpen, onToggleStar, onToggleTag, activeTag }) {
+export default function DehydratedCard({ card, index, number, onOpen, onToggleStar, onToggleTag, activeTag }) {
   const source = SOURCE_TYPES[card.sourceType] || SOURCE_TYPES.article
-  const number = String(index + 1).padStart(3, '0')
+  const code = String(number ?? index + 1).padStart(3, '0')
 
   return (
     <article className={`archive-card archive-card--${card.sourceType} ${index === 0 ? 'is-featured' : ''}`}>
@@ -11,7 +11,7 @@ export default function DehydratedCard({ card, index, onOpen, onToggleStar, onTo
         <button className="card-open-layer" type="button" onClick={() => onOpen(card.id)} aria-label={`阅读归档：${card.title}`} />
         <div className="card-topline">
           <span className="source-stamp"><i className={`geo geo--${source.shape}`} /><source.Icon size={14} />{source.short}</span>
-          <span className="archive-number">DRY—{number}</span>
+          <span className="archive-number">DRY—{code}</span>
         </div>
         <blockquote>“{card.golden_quote}”</blockquote>
         <div className="card-summary"><span>ONE CLEAR IDEA</span><p>{card.one_line_summary}</p></div>
