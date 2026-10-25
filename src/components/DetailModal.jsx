@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDownToLine, Check, Copy, Loader2, NotebookPen, Save, Star, X } from 'lucide-react'
+import { ArrowDownToLine, Check, Copy, Loader2, NotebookPen, Save, Star, Trash2, X } from 'lucide-react'
 import { POSTER_THEMES, SOURCE_TYPES } from '../lib/constants'
 import { downloadQuotePoster } from '../lib/exportPoster'
 import QuotePoster, { formatPosterDate } from './QuotePoster'
 
-export default function DetailModal({ card, onClose, onToggleStar, onSaveNote, onToast }) {
+export default function DetailModal({ card, onClose, onToggleStar, onSaveNote, onDelete, onToast, authOpen, isOwner }) {
   const [note, setNote] = useState(card.personal_note || '')
   const [theme, setTheme] = useState('primary')
   const [downloading, setDownloading] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const panelRef = useRef(null)
+  const confirmTimer = useRef(null)
   const source = SOURCE_TYPES[card.sourceType] || SOURCE_TYPES.article
   const dirty = note !== (card.personal_note || '')
 
@@ -17,16 +21,38 @@ export default function DetailModal({ card, onClose, onToggleStar, onSaveNote, o
     const oldOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     panelRef.current?.focus()
-    const handleKey = (event) => { if (event.key === 'Escape') onClose() }
+    const handleKey = (event) => { if (event.key === 'Escape' && !authOpen) onClose() }
     window.addEventListener('keydown', handleKey)
     return () => { document.body.style.overflow = oldOverflow; window.removeEventListener('keydown', handleKey) }
-  }, [onClose])
+  }, [onClose, authOpen])
 
-  const save = () => {
-    if (!dirty) return
-    onSaveNote(card.id, note.trim())
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1800)
+  useEffect(() => () => { if (confirmTimer.current) clearTimeout(confirmTimer.current) }, [])
+
+  const save = async () => {
+    if (!dirty || saving) return
+    setSaving(true)
+    const ok = await onSaveNote(card.id, note.trim())
+    setSaving(false)
+    if (ok) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1800)
+    }
+  }
+
+  const requestDelete = async () => {
+    if (deleting) return
+    if (!isOwner) { onDelete(card.id); return }
+    if (!confirming) {
+      setConfirming(true)
+      if (confirmTimer.current) clearTimeout(confirmTimer.current)
+      confirmTimer.current = setTimeout(() => setConfirming(false), 4000)
+      return
+    }
+    if (confirmTimer.current) clearTimeout(confirmTimer.current)
+    setConfirming(false)
+    setDeleting(true)
+    await onDelete(card.id)
+    setDeleting(false)
   }
 
   const copyQuote = async () => {
@@ -60,10 +86,17 @@ export default function DetailModal({ card, onClose, onToggleStar, onSaveNote, o
             </section>
 
             <section className="notes-section">
-              <div className="detail-section-title"><NotebookPen size={20} /><h3>个人批注</h3><span>{dirty ? '有未保存修改' : '仅本地保存'}</span></div>
+              <div className="detail-section-title"><NotebookPen size={20} /><h3>个人批注</h3><span>{dirty ? '有未保存修改' : card.noteUpdatedAt ? '已同步至云端' : '尚未填写'}</span></div>
               <textarea value={note} onChange={(event) => { setNote(event.target.value); setSaved(false) }} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); save() } }} placeholder="它为什么戳中你？你准备把它用在哪里？" rows={5} />
-              <div className="note-actions"><span>{note.length} 字 · Ctrl / ⌘ + Enter</span><button type="button" onClick={save} disabled={!dirty}>{saved ? <Check size={16} /> : <Save size={16} />}{saved ? '已保存' : '保存批注'}</button></div>
+              <div className="note-actions"><span>{note.length} 字 · Ctrl / ⌘ + Enter</span><button type="button" onClick={save} disabled={!dirty || saving}>{saved ? <Check size={16} /> : <Save size={16} />}{saving ? '正在保存…' : saved ? '已保存' : '保存批注'}</button></div>
             </section>
+
+            <div className="detail-danger">
+              <button type="button" className={`delete-card ${confirming ? 'is-confirming' : ''}`} onClick={requestDelete} disabled={deleting}>
+                <Trash2 size={15} />
+                {deleting ? '正在删除…' : confirming ? '再点一次确认删除' : '删除这张切片'}
+              </button>
+            </div>
           </div>
 
           <aside className="poster-studio">

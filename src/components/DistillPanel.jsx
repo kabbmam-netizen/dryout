@@ -12,7 +12,7 @@ function AttachmentIcon({ kind }) {
   return <FileText size={14} />
 }
 
-export default function DistillPanel({ onDistill }) {
+export default function DistillPanel({ onDistill, canWrite, onRequireAuth }) {
   const [title, setTitle] = useState('')
   const [sourceType, setSourceType] = useState('podcast')
   const [text, setText] = useState('')
@@ -82,6 +82,7 @@ export default function DistillPanel({ onDistill }) {
 
   const handleDistill = async () => {
     if (loading || readingFile || charCount < 20) return
+    if (!canWrite) { onRequireAuth('distill'); return }
     let finalSourceUrl = sourceUrl
     try { if (linkInput.trim()) finalSourceUrl = normalizeSourceUrl(linkInput) }
     catch (err) { setError(err.message); return }
@@ -104,10 +105,11 @@ export default function DistillPanel({ onDistill }) {
       sourcePlatform: platform?.platform || firstMedia?.name || '',
       sourceAssets: attachments.map(({ kind, name, size, duration, cueCount }) => ({ kind, name, size, duration, cueCount })),
     })
-    onDistill(draft)
+    const saved = await onDistill(draft)
     await sleep(450)
     if (!mounted.current) return
     setProgress(-1)
+    if (saved === false) return
     setTitle('')
     setText('')
     setSourceUrl('')

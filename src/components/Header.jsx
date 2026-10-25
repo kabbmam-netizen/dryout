@@ -2,9 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, LogIn, LogOut, Search, Star, UserRound, X } from 'lucide-react'
 import { APP_THEMES } from '../lib/constants'
 
-export default function Header({ query, onQueryChange, starredOnly, onToggleStarred, starredCount, theme, onThemeChange, loggedIn, onLoginChange, searchRef, activeTag, onClearTag }) {
+export default function Header({ query, onQueryChange, starredOnly, onToggleStarred, starredCount, theme, onThemeChange, session, onOpenAuth, onSignOut, searchRef, activeTag, onClearTag }) {
   const [accountOpen, setAccountOpen] = useState(false)
   const accountRef = useRef(null)
+
+  const email = session?.user?.email || ''
+  const loggedIn = Boolean(session)
+  const handle = email ? email.split('@')[0] : ''
+  const initial = handle ? handle.slice(0, 2).toUpperCase() : ''
 
   useEffect(() => {
     if (!accountOpen) return undefined
@@ -14,6 +19,8 @@ export default function Header({ query, onQueryChange, starredOnly, onToggleStar
     document.addEventListener('pointerdown', close)
     return () => document.removeEventListener('pointerdown', close)
   }, [accountOpen])
+
+  useEffect(() => { if (!loggedIn) setAccountOpen(false) }, [loggedIn])
 
   return (
     <header className="site-header">
@@ -52,20 +59,30 @@ export default function Header({ query, onQueryChange, starredOnly, onToggleStar
         </div>
 
         <div className="account" ref={accountRef}>
-          <button type="button" className={`account-trigger ${loggedIn ? 'is-logged' : ''}`} onClick={() => setAccountOpen(!accountOpen)} aria-expanded={accountOpen}>
-            <span className="account-avatar">{loggedIn ? 'LI' : <UserRound size={17} />}</span>
-            <span className="account-copy"><b>{loggedIn ? 'LI' : '本地访客'}</b><small>{loggedIn ? '演示已登录' : '未登录'}</small></span>
-            <ChevronDown size={13} />
-          </button>
-          {accountOpen && (
+          {loggedIn ? (
+            <button type="button" className="account-trigger is-logged" onClick={() => setAccountOpen(!accountOpen)} aria-expanded={accountOpen} aria-haspopup="menu">
+              <span className="account-avatar">{initial || 'ME'}</span>
+              <span className="account-copy"><b>{handle}</b><small>已连接云端</small></span>
+              <ChevronDown size={13} />
+            </button>
+          ) : (
+            <button type="button" className="account-trigger" onClick={() => onOpenAuth()} aria-haspopup="dialog">
+              <span className="account-avatar"><UserRound size={17} /></span>
+              <span className="account-copy"><b>本地访客</b><small>登录 / 注册</small></span>
+              <LogIn size={14} />
+            </button>
+          )}
+
+          {loggedIn && accountOpen && (
             <div className="account-popover">
               <span className="eyebrow">ACCOUNT / 账户</span>
-              <h3>{loggedIn ? '你好，LI。' : '你的内容，留在这里。'}</h3>
-              <p>当前为作品集演示，归档与批注仅保存在此浏览器。登录按钮用于演示账户状态，不会上传数据。</p>
-              <div className="local-status"><Check size={15} /><span>本地存储运行正常</span></div>
-              <button type="button" className="account-login" onClick={() => { onLoginChange(!loggedIn); setAccountOpen(false) }}>
-                {loggedIn ? <LogOut size={16} /> : <LogIn size={16} />}
-                {loggedIn ? '退出演示账户' : '进入演示账户'}
+              <h3>{handle ? `你好，${handle}。` : '你好。'}</h3>
+              <p>{email}</p>
+              <p>归档、星标与批注已同步到云端；只有你本人能修改自己创建的切片。</p>
+              <div className="local-status"><Check size={15} /><span>云端数据库连接正常</span></div>
+              <button type="button" className="account-login" onClick={() => { setAccountOpen(false); onSignOut() }}>
+                <LogOut size={16} />
+                退出登录
               </button>
             </div>
           )}

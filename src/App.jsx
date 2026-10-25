@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, Circle, HardDrive, RotateCcw, Square, Star } from 'lucide-react'
+import { ArrowDown, Circle, HardDrive, RotateCcw } from 'lucide-react'
 import Header from './components/Header'
 import DistillPanel from './components/DistillPanel'
 import DehydratedCard from './components/DehydratedCard'
 import DetailModal from './components/DetailModal'
 import EmptyState from './components/EmptyState'
 import Toast from './components/Toast'
-import { MOCK_CARDS } from './data/mockCards'
+import AuthDialog from './components/AuthDialog'
 import { SOURCE_OPTIONS } from './lib/constants'
 import { matchesQuery } from './lib/distill'
+import { supabase, supabaseReady } from './lib/supabase'
+import { deleteCardById, fetchCards, insertCard, updateCardFields } from './lib/cardsApi'
 
-const CARDS_KEY = 'dryout.cards.v2'
 const THEME_KEY = 'dryout.theme.v2'
-const ACCOUNT_KEY = 'dryout.account.v2'
 
 function loadValue(key, fallback) {
   try {
@@ -22,44 +22,79 @@ function loadValue(key, fallback) {
 }
 
 export default function App() {
-  const [cards, setCards] = useState(() => {
-    const stored = loadValue(CARDS_KEY, MOCK_CARDS)
-    return Array.isArray(stored) && stored.length ? stored : MOCK_CARDS
-  })
+  const [cards, setCards] = useState([])
+  const [loadingCards, setLoadingCards] = useState(true)
+  const [session, setSession] = useState(null)
+  const [authOpen, setAuthOpen] = useState(false)
+  const [authReason, setAuthReason] = useState('account')
+
   const [query, setQuery] = useState('')
   const [starredOnly, setStarredOnly] = useState(false)
   const [sourceFilter, setSourceFilter] = useState('all')
   const [activeTag, setActiveTag] = useState(null)
   const [activeId, setActiveId] = useState(null)
   const [theme, setTheme] = useState(() => loadValue(THEME_KEY, 'primary'))
-  const [loggedIn, setLoggedIn] = useState(() => loadValue(ACCOUNT_KEY, false))
   const [toast, setToast] = useState(null)
   const searchRef = useRef(null)
   const toastTimer = useRef(null)
 
+  const userId = session?.user?.id || null
+
   const showToast = useCallback((message) => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     setToast({ id: Date.now(), message })
-    toastTimer.current = setTimeout(() => setToast(null), 2800)
+    toastTimer.current = setTimeout(() => setToast(null), 3200)
+  }, [])
+
+  const requireAuth = useCallback((reason) => {
+    setAuthReason(reason)
+    setAuthOpen(true)
   }, [])
 
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
-  useEffect(() => { window.localStorage.setItem(CARDS_KEY, JSON.stringify(cards)) }, [cards])
-  useEffect(() => { window.localStorage.setItem(ACCOUNT_KEY, JSON.stringify(loggedIn)) }, [loggedIn])
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     document.documentElement.style.colorScheme = theme === 'night' ? 'dark' : 'light'
     window.localStorage.setItem(THEME_KEY, JSON.stringify(theme))
   }, [theme])
 
+  // 登录态：读取已有会话并订阅变化
+  useEffect(() => {
+    if (!supabaseReady) { setLoadingCards(false); return undefined }
+    let active = true
+    supabase.auth.getSession().then(({ data }) => { if (active) setSession(data.session) })
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (active) setSession(nextSession)
+    })
+    return () => { active = false; listener.subscription.unsubscribe() }
+  }, [])
+
+  const loadedRef = useRef(false)
+
+  const refreshCards = useCallback(async () => {
+    if (!supabaseReady) { setLoadingCards(false); return }
+    if (!loadedRef.current) setLoadingCards(true)
+    try {
+      setCards(await fetchCards())
+      loadedRef.current = true
+    } catch {
+      showToast('云端归档拉取失败，请检查网络后刷新页面')
+    } finally {
+      setLoadingCards(false)
+    }
+  }, [showToast])
+
+  // 访客看到公开切片；登录后重新拉取，额外带上自己创建的私密切片
+  useEffect(() => { refreshCards() }, [refreshCards, userId])
+
   useEffect(() => {
     const handleKey = (event) => {
       const typing = ['INPUT', 'TEXTAREA'].includes(event.target.tagName)
-      if (event.key === '/' && !typing) { event.preventDefault(); searchRef.current?.focus() }
+      if (event.key === '/' && !typing && !authOpen) { event.preventDefault(); searchRef.current?.focus() }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [])
+  }, [authOpen])
 
   const visibleCards = useMemo(() => cards.filter((card) => {
     if (starredOnly && !card.starred) return false
@@ -78,25 +113,84 @@ export default function App() {
   const starredCount = cards.filter((card) => card.starred).length
   const filtering = Boolean(query.trim() || starredOnly || sourceFilter !== 'all' || activeTag)
 
-  const handleDistill = (draft) => {
-    const card = { ...draft, id: `card-${Date.now()}`, createdAt: new Date().toISOString(), key_takeaways: draft.key_takeaways.slice(0, 3) }
-    setCards((previous) => [card, ...previous])
-    setQuery(''); setSourceFilter('all'); setStarredOnly(false); setActiveTag(null)
-    showToast('新切片已压入归档，点击继续阅读与导出')
-    setTimeout(() => document.getElementById('archive')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250)
+  const handleDistill = async (draft) => {
+    if (!session) { requireAuth('distill'); return false }
+    try {
+      const created = await insertCard({ ...draft, key_takeaways: draft.key_takeaways.slice(0, 3) }, session.user.id)
+      setCards((previous) => [created, ...previous])
+      setQuery(''); setSourceFilter('all'); setStarredOnly(false); setActiveTag(null)
+      showToast('新切片已压入云端归档，点击继续阅读与导出')
+      setTimeout(() => document.getElementById('archive')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250)
+      return true
+    } catch (error) {
+      showToast(`归档写入失败：${error.message || '请稍后重试'}`)
+      return false
+    }
   }
 
-  const toggleStar = (id) => setCards((previous) => previous.map((card) => card.id === id ? { ...card, starred: !card.starred } : card))
-  const saveNote = (id, note) => {
-    setCards((previous) => previous.map((card) => card.id === id ? { ...card, personal_note: note, noteUpdatedAt: new Date().toISOString() } : card))
-    showToast('个人批注已保存到这张切片')
+  const toggleStar = async (id) => {
+    if (!session) { requireAuth('star'); return }
+    const card = cards.find((item) => item.id === id)
+    if (!card) return
+    if (card.userId !== session.user.id) { showToast('预置公开切片为只读，星标不会保存'); return }
+    const next = !card.starred
+    setCards((previous) => previous.map((item) => (item.id === id ? { ...item, starred: next } : item)))
+    try {
+      await updateCardFields(id, { starred: next })
+    } catch (error) {
+      setCards((previous) => previous.map((item) => (item.id === id ? { ...item, starred: !next } : item)))
+      showToast(error.name === 'PermissionError' ? '这张切片不属于当前账户，无法修改' : '星标保存失败，请稍后重试')
+    }
   }
+
+  const saveNote = async (id, note) => {
+    if (!session) { requireAuth('note'); return false }
+    const card = cards.find((item) => item.id === id)
+    if (!card) return false
+    if (card.userId !== session.user.id) { showToast('预置公开切片为只读，批注不会保存'); return false }
+    const previousNote = card.personal_note
+    const stamp = new Date().toISOString()
+    setCards((previous) => previous.map((item) => (item.id === id ? { ...item, personal_note: note, noteUpdatedAt: stamp } : item)))
+    try {
+      await updateCardFields(id, { personal_note: note, note_updated_at: stamp })
+      showToast('个人批注已同步到云端')
+      return true
+    } catch (error) {
+      setCards((previous) => previous.map((item) => (item.id === id ? { ...item, personal_note: previousNote } : item)))
+      showToast(error.name === 'PermissionError' ? '这张切片不属于当前账户，无法保存批注' : '批注保存失败，请稍后重试')
+      return false
+    }
+  }
+
+  const deleteCard = async (id) => {
+    if (!session) { requireAuth('delete'); return false }
+    const card = cards.find((item) => item.id === id)
+    if (!card) return false
+    if (card.userId !== session.user.id) { showToast('只能删除自己创建的切片'); return false }
+    try {
+      await deleteCardById(id)
+      setCards((previous) => previous.filter((item) => item.id !== id))
+      setActiveId(null)
+      showToast('切片已从云端归档中删除')
+      return true
+    } catch (error) {
+      showToast(error.name === 'PermissionError' ? '这张切片不属于当前账户，无法删除' : '删除失败，请稍后重试')
+      return false
+    }
+  }
+
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    setActiveId(null)
+    showToast('已退出登录，继续以访客身份浏览公开切片')
+  }
+
   const clearFilters = () => { setQuery(''); setStarredOnly(false); setSourceFilter('all'); setActiveTag(null) }
   const toggleTag = (tag) => setActiveTag((previous) => (previous === tag ? null : tag))
 
   return (
     <div className="app-shell" id="top">
-      <Header query={query} onQueryChange={setQuery} starredOnly={starredOnly} onToggleStarred={() => setStarredOnly(!starredOnly)} starredCount={starredCount} theme={theme} onThemeChange={setTheme} loggedIn={loggedIn} onLoginChange={setLoggedIn} searchRef={searchRef} activeTag={activeTag} onClearTag={() => setActiveTag(null)} />
+      <Header query={query} onQueryChange={setQuery} starredOnly={starredOnly} onToggleStarred={() => setStarredOnly(!starredOnly)} starredCount={starredCount} theme={theme} onThemeChange={setTheme} session={session} onOpenAuth={() => requireAuth('account')} onSignOut={signOut} searchRef={searchRef} activeTag={activeTag} onClearTag={() => setActiveTag(null)} />
 
       <main>
         <section className="hero-section" aria-labelledby="hero-title">
@@ -112,7 +206,7 @@ export default function App() {
               <a href="#archive">浏览画廊<ArrowDown size={17} /></a>
             </div>
           </div>
-          <DistillPanel onDistill={handleDistill} />
+          <DistillPanel onDistill={handleDistill} canWrite={Boolean(session)} onRequireAuth={requireAuth} />
         </section>
 
         <section className="archive-section" id="archive" aria-labelledby="archive-title">
@@ -129,7 +223,9 @@ export default function App() {
             {filtering ? <button type="button" className="clear-filter" onClick={clearFilters}><RotateCcw size={14} />重置筛选</button> : <span className="sort-note">按归档时间倒序 ↓</span>}
           </div>
 
-          {visibleCards.length ? (
+          {loadingCards ? (
+            <p className="archive-loading">正在同步云端归档…</p>
+          ) : visibleCards.length ? (
             <div className="archive-grid">{visibleCards.map((card, index) => <DehydratedCard key={card.id} card={card} index={index} number={cardNumbers.get(card.id)} onOpen={setActiveId} onToggleStar={toggleStar} onToggleTag={toggleTag} activeTag={activeTag} />)}</div>
           ) : <EmptyState onClearFilters={clearFilters} />}
         </section>
@@ -138,11 +234,12 @@ export default function App() {
       <footer className="site-footer">
         <div className="footer-brand"><span className="brand-mark" aria-hidden="true"><i /><b /><em /></span><strong>DRYOUT</strong></div>
         <p>LESS CONTENT.<br />MORE CLARITY.</p>
-        <span><HardDrive size={15} />本地优先 · 原稿与批注不会上传</span>
+        <span><HardDrive size={15} />云端同步 · 归档与批注保存在你的账户</span>
         <a href="#top">回到顶部 ↑</a>
       </footer>
 
-      {activeCard && <DetailModal card={activeCard} onClose={() => setActiveId(null)} onToggleStar={toggleStar} onSaveNote={saveNote} onToast={showToast} />}
+      {activeCard && <DetailModal card={activeCard} onClose={() => setActiveId(null)} onToggleStar={toggleStar} onSaveNote={saveNote} onDelete={deleteCard} onToast={showToast} authOpen={authOpen} isOwner={Boolean(session) && activeCard.userId === userId} />}
+      <AuthDialog open={authOpen} reason={authReason} onClose={() => setAuthOpen(false)} />
       <Toast toast={toast} />
     </div>
   )

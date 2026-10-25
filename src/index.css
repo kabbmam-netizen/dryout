@@ -348,6 +348,38 @@ main { display: block; }
 .download-button:hover:not(:disabled) { transform: translate(-2px,-2px); box-shadow: 5px 5px 0 var(--ink); }
 .poster-studio .copy-button { width: 100%; margin-top: 14px; border: 0; }
 
+/* Auth dialog */
+.auth-overlay { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--overlay); animation: fade-in 180ms ease-out; }
+.auth-dialog { width: min(480px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--paper); color: var(--ink); border: 2px solid var(--ink); box-shadow: var(--hard-shadow); animation: auth-in 200ms ease-out; }
+@keyframes auth-in { from { transform: translateY(14px); opacity: 0; } }
+.auth-topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: var(--canvas); border-bottom: 2px solid var(--ink); }
+.auth-topbar > span { font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.13em; }
+.auth-topbar button { display: grid; place-items: center; border: 0; background: transparent; padding: 4px; color: var(--ink); }
+.auth-body { padding: 24px 22px 26px; }
+.auth-body h2 { margin: 0 0 8px; font-size: clamp(22px, 4vw, 27px); line-height: 1.22; letter-spacing: -0.04em; }
+.auth-lead { margin: 0 0 18px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.auth-body .console-label { justify-content: flex-start; gap: 8px; }
+.auth-switch { display: flex; margin-bottom: 18px; border: 2px solid var(--ink); }
+.auth-switch button { flex: 1; height: 36px; border: 0; background: transparent; color: var(--ink); font-size: 11px; font-weight: 800; }
+.auth-switch button.is-active { background: var(--ink); color: var(--paper); }
+.auth-field { display: flex; align-items: center; gap: 9px; height: 44px; margin-bottom: 16px; padding: 0 12px; background: var(--canvas); border: 2px solid var(--ink); }
+.auth-field svg { flex: 0 0 auto; color: var(--muted); }
+.auth-field input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 12px; }
+.auth-field input::placeholder { color: var(--muted); }
+.auth-field:focus-within { border-color: var(--blue); box-shadow: 3px 3px 0 var(--blue); }
+.auth-error, .auth-notice { margin: 0 0 14px; padding: 9px 12px; border-left: 5px solid var(--red); background: var(--canvas); color: var(--red); font-size: 11px; font-weight: 700; }
+.auth-notice { border-left-color: var(--green); color: var(--green); }
+.auth-submit { width: 100%; margin-top: 4px; }
+.auth-foot { margin: 16px 0 0; color: var(--muted); font-size: 10px; line-height: 1.75; }
+
+/* Archive loading */
+.archive-loading { margin: 0; padding: 56px 16px; border: 2px dashed var(--ink); text-align: center; color: var(--muted); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; }
+
+/* Danger zone in drawer */
+.detail-danger { margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--ink); }
+.delete-card { display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; background: transparent; border: 2px solid var(--ink); color: var(--red); font-size: 10px; font-weight: 700; }
+.delete-card:hover:not(:disabled), .delete-card.is-confirming { background: var(--red); border-color: var(--red); color: #FFFDF6; }
+
 /* Toast */
 .toast { position: fixed; z-index: 150; left: 50%; bottom: 28px; transform: translateX(-50%); max-width: calc(100vw - 32px); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--ink); color: var(--paper); border: 2px solid var(--paper); box-shadow: 4px 4px 0 var(--red); font-size: 11px; font-weight: 700; animation: toast-in 220ms ease-out; }
 .toast > span { color: var(--green); }
@@ -449,6 +481,8 @@ main { display: block; }
   .site-footer { grid-template-columns: 1fr; gap: 20px; padding: 28px 20px; }
   .site-footer p { display: none; }
   .detail-drawer { width: 100vw; border-left: 0; overflow-y: auto; }
+  .auth-overlay { align-items: flex-start; padding: 24px 12px; }
+  .auth-body { padding: 20px 18px 22px; }
   .drawer-topbar { position: sticky; top: 0; z-index: 10; background: var(--paper); padding-left: 16px; }
   .drawer-topbar > span:nth-child(2) { display: none; }
   .drawer-topbar button { margin-left: auto; }
