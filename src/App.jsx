@@ -29,6 +29,7 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [starredOnly, setStarredOnly] = useState(false)
   const [sourceFilter, setSourceFilter] = useState('all')
+  const [activeTag, setActiveTag] = useState(null)
   const [activeId, setActiveId] = useState(null)
   const [theme, setTheme] = useState(() => loadValue(THEME_KEY, 'primary'))
   const [loggedIn, setLoggedIn] = useState(() => loadValue(ACCOUNT_KEY, false))
@@ -63,17 +64,18 @@ export default function App() {
   const visibleCards = useMemo(() => cards.filter((card) => {
     if (starredOnly && !card.starred) return false
     if (sourceFilter !== 'all' && card.sourceType !== sourceFilter) return false
+    if (activeTag && !(card.tags || []).includes(activeTag)) return false
     return matchesQuery(card, query)
-  }), [cards, query, sourceFilter, starredOnly])
+  }), [cards, query, sourceFilter, starredOnly, activeTag])
 
   const activeCard = cards.find((card) => card.id === activeId) || null
   const starredCount = cards.filter((card) => card.starred).length
-  const filtering = query.trim() || starredOnly || sourceFilter !== 'all'
+  const filtering = Boolean(query.trim() || starredOnly || sourceFilter !== 'all' || activeTag)
 
   const handleDistill = (draft) => {
     const card = { ...draft, id: `card-${Date.now()}`, createdAt: new Date().toISOString(), key_takeaways: draft.key_takeaways.slice(0, 3) }
     setCards((previous) => [card, ...previous])
-    setQuery(''); setSourceFilter('all'); setStarredOnly(false)
+    setQuery(''); setSourceFilter('all'); setStarredOnly(false); setActiveTag(null)
     showToast('新切片已压入归档，点击继续阅读与导出')
     setTimeout(() => document.getElementById('archive')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250)
   }
@@ -83,11 +85,12 @@ export default function App() {
     setCards((previous) => previous.map((card) => card.id === id ? { ...card, personal_note: note, noteUpdatedAt: new Date().toISOString() } : card))
     showToast('个人批注已保存到这张切片')
   }
-  const clearFilters = () => { setQuery(''); setStarredOnly(false); setSourceFilter('all') }
+  const clearFilters = () => { setQuery(''); setStarredOnly(false); setSourceFilter('all'); setActiveTag(null) }
+  const toggleTag = (tag) => setActiveTag((previous) => (previous === tag ? null : tag))
 
   return (
     <div className="app-shell" id="top">
-      <Header query={query} onQueryChange={setQuery} starredOnly={starredOnly} onToggleStarred={() => setStarredOnly(!starredOnly)} starredCount={starredCount} theme={theme} onThemeChange={setTheme} loggedIn={loggedIn} onLoginChange={setLoggedIn} searchRef={searchRef} />
+      <Header query={query} onQueryChange={setQuery} starredOnly={starredOnly} onToggleStarred={() => setStarredOnly(!starredOnly)} starredCount={starredCount} theme={theme} onThemeChange={setTheme} loggedIn={loggedIn} onLoginChange={setLoggedIn} searchRef={searchRef} activeTag={activeTag} onClearTag={() => setActiveTag(null)} />
 
       <main>
         <section className="hero-section" aria-labelledby="hero-title">
@@ -121,7 +124,7 @@ export default function App() {
           </div>
 
           {visibleCards.length ? (
-            <div className="archive-grid">{visibleCards.map((card, index) => <DehydratedCard key={card.id} card={card} index={index} onOpen={setActiveId} onToggleStar={toggleStar} />)}</div>
+            <div className="archive-grid">{visibleCards.map((card, index) => <DehydratedCard key={card.id} card={card} index={index} onOpen={setActiveId} onToggleStar={toggleStar} onToggleTag={toggleTag} activeTag={activeTag} />)}</div>
           ) : <EmptyState onClearFilters={clearFilters} />}
         </section>
       </main>
