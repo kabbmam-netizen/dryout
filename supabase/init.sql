@@ -2,7 +2,18 @@
 -- VibeDistill / DRYOUT 内容切片机 — Supabase 初始化脚本
 -- ----------------------------------------------------------------------------
 -- 用法：Supabase Dashboard → SQL Editor → New query → 全选粘贴 → Run
--- 幂等：可重复执行；重复运行不会报错，也不会重复插入种子数据
+-- 幂等：可重复执行。脚本会先删掉同名旧表再重建，因此重复执行得到的一定是
+--       与本文件完全一致的结构；代价是表中已有数据会被清空。
+--       如果表里已有要保留的数据，先备份，不要直接跑。
+--
+-- 为什么不用 create table if not exists：它只判断表在不在，不会给已存在的
+-- 表补列。若库里已有一张旧结构的 distill_cards（比如早前试跑留下的），
+-- 建表语句会被跳过，后续 insert 就会报 42703 column "meta" does not exist。
+--
+-- 执行前想确认现有结构，可单独跑：
+--   select column_name, data_type from information_schema.columns
+--   where table_schema = 'public' and table_name = 'distill_cards'
+--   order by ordinal_position;
 --
 -- 字段与前端 src/data/mockCards.js、src/lib/distill.js 的卡片对象一一对应：
 --   前端字段            →  数据库列
@@ -34,8 +45,12 @@
 
 -- ---------------------------------------------------------------------------
 -- 1. 表结构
+--    先删除旧表：早前试跑可能留下结构不全的 distill_cards，cascade 会一并
+--    清掉它的索引与策略，保证下面建出来的就是本文件定义的版本。
 -- ---------------------------------------------------------------------------
-create table if not exists public.distill_cards (
+drop table if exists public.distill_cards cascade;
+
+create table public.distill_cards (
   id               uuid primary key default gen_random_uuid(),
   user_id          uuid references auth.users (id) on delete cascade,
 
