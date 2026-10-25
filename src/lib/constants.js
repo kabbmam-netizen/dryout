@@ -2,7 +2,7 @@ import { FileText, Headphones, Video } from 'lucide-react'
 
 export const SOURCE_TYPES = {
   podcast: { value: 'podcast', label: '播客', short: 'PODCAST', Icon: Headphones, shape: 'circle' },
-  bilibili: { value: 'bilibili', label: 'B站视频', short: 'VIDEO', Icon: Video, shape: 'square' },
+  bilibili: { value: 'bilibili', label: '视频', short: 'VIDEO', Icon: Video, shape: 'square' },
   article: { value: 'article', label: '深度长文', short: 'ARTICLE', Icon: FileText, shape: 'half' },
 }
 
