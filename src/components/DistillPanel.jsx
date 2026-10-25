@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Check, FileInput, FileText, Link2, Loader2, Music, Sparkles, Upload, Video, X } from 'lucide-react'
-import { SAMPLE_TRANSCRIPT, SOURCE_OPTIONS, sleep } from '../lib/constants'
+import { SAMPLES, SOURCE_OPTIONS, sleep } from '../lib/constants'
 import { distillContent } from '../lib/distill'
 import { getSourcePlatform, importSourceFile, normalizeSourceUrl } from '../lib/sourceImport'
 
@@ -36,10 +36,11 @@ export default function DistillPanel({ onDistill }) {
     return () => { mounted.current = false }
   }, [])
 
-  const fillSample = () => {
-    setText(SAMPLE_TRANSCRIPT)
-    setTitle('信息密度：为什么你的收藏夹越来越满')
-    setSourceType('podcast')
+  const fillSample = (sample) => {
+    if (loading || readingFile) return
+    setText(sample.text)
+    setTitle(sample.title)
+    setSourceType(sample.sourceType)
     setError('')
     requestAnimationFrame(() => textareaRef.current?.focus())
   }
@@ -194,7 +195,13 @@ export default function DistillPanel({ onDistill }) {
       {error && <p className="form-error" role="alert">{error}</p>}
 
       <div className="console-footer">
-        <button type="button" className="sample-button" onClick={fillSample} disabled={loading}><FileInput size={16} />填入示例播客文稿</button>
+        <div className="sample-actions" role="group" aria-label="填入测试样本">
+          {SAMPLES.map((sample) => (
+            <button key={sample.id} type="button" className="sample-button" onClick={() => fillSample(sample)} disabled={loading || readingFile}>
+              <FileInput size={15} />{sample.label}
+            </button>
+          ))}
+        </div>
         <button type="button" className="primary-action" onClick={handleDistill} disabled={loading || readingFile || charCount < 20}>
           {loading || readingFile ? <Loader2 size={18} className="spin" /> : <Sparkles size={18} />}
           <span>{loading ? '正在切片…' : readingFile ? '正在读取素材…' : progress === 4 ? '归档完成' : '开始脱水归档'}</span>
