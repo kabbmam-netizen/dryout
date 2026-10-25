@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, LogIn, LogOut, Search, Star, UserRound, X } from 'lucide-react'
 import { APP_THEMES } from '../lib/constants'
 
-export default function Header({ query, onQueryChange, starredOnly, onToggleStarred, starredCount, theme, onThemeChange, loggedIn, onLoginChange, searchRef }) {
+export default function Header({ query, onQueryChange, starredOnly, onToggleStarred, starredCount, theme, onThemeChange, loggedIn, onLoginChange, searchRef, activeTag, onClearTag }) {
   const [accountOpen, setAccountOpen] = useState(false)
   const accountRef = useRef(null)
 
@@ -22,14 +22,19 @@ export default function Header({ query, onQueryChange, starredOnly, onToggleStar
         <span className="brand-word">DRYOUT<span>内容切片机</span></span>
       </a>
 
-      <label className="global-search">
+      <div className="global-search" role="search">
         <Search size={17} aria-hidden="true" />
-        <span className="sr-only">搜索标题、金句或标签</span>
-        <input ref={searchRef} type="search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="搜索标题 / 金句 / 标签" />
+        <label className="sr-only" htmlFor="global-search-input">搜索标题、金句或标签</label>
+        <input id="global-search-input" ref={searchRef} type="search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="搜索标题 / 金句 / 标签" />
+        {activeTag && (
+          <button type="button" className="active-tag-badge" onClick={() => { onClearTag(); searchRef.current?.focus() }} aria-label={`清除标签筛选 ${activeTag}`}>
+            <span>#{activeTag}</span><X size={13} aria-hidden="true" />
+          </button>
+        )}
         {query ? (
-          <button type="button" onClick={() => onQueryChange('')} aria-label="清空搜索"><X size={15} /></button>
-        ) : <kbd>/</kbd>}
-      </label>
+          <button type="button" className="search-clear" onClick={() => onQueryChange('')} aria-label="清空搜索"><X size={15} /></button>
+        ) : activeTag ? null : <kbd>/</kbd>}
+      </div>
 
       <div className="header-actions">
         <button type="button" className={`star-filter ${starredOnly ? 'is-active' : ''}`} onClick={onToggleStarred} aria-pressed={starredOnly}>

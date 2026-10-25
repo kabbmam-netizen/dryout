@@ -143,7 +143,7 @@ function suggestTitle(text) {
   return trimTo(stripped || first || '未命名灵感', 26)
 }
 
-export function distillContent({ title, text, sourceType, sourceLabel, sourceUrl }) {
+export function distillContent({ title, text, sourceType, sourceLabel, sourceUrl, sourcePlatform = '', sourceAssets = [] }) {
   const source = text.trim()
   const sentences = [...new Set(splitSentences(source))]
   const ranked = sentences
@@ -179,8 +179,8 @@ export function distillContent({ title, text, sourceType, sourceLabel, sourceUrl
   const tags = pickTags(source, sourceLabel)
   const charCount = source.replace(/\s/g, '').length
 
-  let sourceName = '手动粘贴'
-  if (sourceUrl.trim()) {
+  let sourceName = sourcePlatform || '手动粘贴'
+  if (!sourcePlatform && sourceUrl.trim()) {
     try {
       sourceName = new URL(sourceUrl.trim()).hostname.replace(/^www\./, '')
     } catch {
@@ -193,6 +193,7 @@ export function distillContent({ title, text, sourceType, sourceLabel, sourceUrl
     sourceType,
     sourceName,
     sourceUrl: sourceUrl.trim(),
+    sourceAssets,
     meta: `${charCount} 字原始稿`,
     golden_quote: goldenQuote,
     one_line_summary: oneLineSummary,
