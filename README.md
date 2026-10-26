@@ -90,7 +90,7 @@ npm run build
 npx wrangler pages deploy dist --project-name dryout
 ```
 
-`wrangler.toml` 里的 `pages_build_output_dir` 和 `public/_redirects` 都已经配好，产物目录与 SPA 回退不用另外设置。
+构建配置直接写在 Pages 项目的 Settings 里（构建命令 `npm run build`、输出目录 `dist`），仓库中不放 `wrangler.toml`——它会让 Pages 改从文件读取构建配置，反而覆盖掉面板里的环境变量。
 
 > 仓库里没有提交 `package-lock.json`：本机的 lockfile 只包含 Windows 原生绑定（`@rolldown/binding-win32-x64-msvc`），缺少 Linux 版本会让 Cloudflare 这类 Linux 构建环境报 `Cannot find module 'vite'`。让 CI 自行解析依赖树即可。
 >
@@ -118,7 +118,6 @@ npx wrangler pages deploy dist --project-name dryout
 │   └── functions/distill/   # Edge Function：调 DeepSeek 生成卡片字段
 ├── public/_redirects        # Cloudflare Pages 的 SPA 回退
 ├── DESIGN.md                # 视觉与交互设计规范
-├── wrangler.toml            # Cloudflare Pages 部署配置
 ├── index.html
 └── vite.config.js
 ```

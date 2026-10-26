@@ -1,7 +1,0 @@
-# Cloudflare Pages 配置
-# 接 Git 仓库时，Cloudflare 会读取这里的 pages_build_output_dir 作为产物目录
-# 命令行部署：npx wrangler pages deploy dist --project-name dryout
-
-name = "dryout"
-pages_build_output_dir = "./dist"
-compatibility_date = "2026-10-01"
