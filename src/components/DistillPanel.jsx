@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Check, FileInput, FileText, Link2, Loader2, Music, Sparkles, Upload, Video, X } from 'lucide-react'
 import { SAMPLES, SOURCE_OPTIONS, sleep } from '../lib/constants'
 import { distillContent } from '../lib/distill'
+import { requestDistill } from '../lib/llm'
 import { getSourcePlatform, importSourceFile, normalizeSourceUrl } from '../lib/sourceImport'
 
 const STEPS = ['接收原稿', '压缩 noise', '拣选金句', '切片归档']
@@ -88,15 +89,10 @@ export default function DistillPanel({ onDistill, canWrite, onRequireAuth }) {
     catch (err) { setError(err.message); return }
 
     setError('')
-    setProgress(0)
-    for (let step = 1; step <= 4; step += 1) {
-      await sleep(step === 4 ? 520 : 680)
-      if (!mounted.current) return
-      setProgress(step)
-    }
     const platform = finalSourceUrl ? getSourcePlatform(finalSourceUrl) : null
     const firstMedia = attachments.find((item) => item.kind === 'video' || item.kind === 'audio')
-    const draft = distillContent({
+    // 本地提炼是同步且便宜的：先算出兜底结果，同时把标题喂给大模型
+    const local = distillContent({
       title,
       text,
       sourceType,
@@ -105,7 +101,32 @@ export default function DistillPanel({ onDistill, canWrite, onRequireAuth }) {
       sourcePlatform: platform?.platform || firstMedia?.name || '',
       sourceAssets: attachments.map(({ kind, name, size, duration, cueCount }) => ({ kind, name, size, duration, cueCount })),
     })
-    const saved = await onDistill(draft)
+
+    // 大模型请求与四步进度动画并行，避免进度条卡在最后一步等网络
+    const aiPromise = requestDistill({ text, title: local.title, sourceType })
+
+    setProgress(0)
+    for (let step = 1; step <= 4; step += 1) {
+      await sleep(step === 4 ? 520 : 680)
+      if (!mounted.current) return
+      setProgress(step)
+    }
+
+    const ai = await aiPromise
+    if (!mounted.current) return
+
+    const draft = ai.data
+      ? {
+          ...local,
+          golden_quote: ai.data.golden_quote,
+          one_line_summary: ai.data.one_line_summary,
+          key_takeaways: ai.data.key_takeaways,
+          tags: ai.data.tags,
+          distilledBy: 'llm',
+        }
+      : { ...local, distilledBy: 'local' }
+
+    const saved = await onDistill(draft, { aiFallback: ai.reason === 'failed' })
     await sleep(450)
     if (!mounted.current) return
     setProgress(-1)

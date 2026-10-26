@@ -1,0 +1,7 @@
+# Cloudflare Pages 配置
+# 部署：npx wrangler pages deploy dist --project-name vibedistill
+# 或在 Cloudflare Dashboard 里接 Git 仓库，构建命令 npm run build、输出目录 dist
+
+name = "vibedistill"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-10-01"

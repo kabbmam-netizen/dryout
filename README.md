@@ -21,6 +21,7 @@
 - React 19
 - Vite 8
 - Supabase（Postgres + Auth + Row Level Security）
+- Supabase Edge Function（Deno）+ DeepSeek（大模型脱水）
 - 原生 CSS Design Tokens
 - Lucide React
 - Canvas 2D（高清卡片导出）
@@ -53,6 +54,38 @@ npm run preview   # 预览生产构建
 
 `.env` 已被 `.gitignore` 忽略，不会进版本库。
 
+## 部署
+
+### 1. Supabase（数据库 + 登录 + 大模型代理）
+
+1. SQL Editor 依次执行 `supabase/init.sql`、`supabase/02_personal_state.sql`
+2. Edge Functions → 新建函数 `distill` → 粘贴 `supabase/functions/distill/index.ts` → Deploy
+3. 该项目的 Secrets 里加 `DEEPSEEK_API_KEY`
+4. Authentication → 关闭邮箱验证，注册后可直接登录
+
+大模型 Key 只存在 Supabase Secret，不会进前端产物；没配 Key 时应用会自动降级到本地算法。
+
+### 2. Cloudflare Pages（前端）
+
+**方式一 · 接 Git 仓库（推荐）**
+
+Dashboard → Workers & Pages → Create → Pages → 连接 GitHub → 选 `kabbmam-netizen/dryout`：
+
+- 构建命令 `npm run build`
+- 输出目录 `dist`
+- 环境变量 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`
+
+之后每次 push 自动部署。
+
+**方式二 · 命令行**
+
+```bash
+npm run build
+npx wrangler pages deploy dist --project-name vibedistill
+```
+
+`public/_redirects` 已经配好 SPA 回退，`wrangler.toml` 里指定了输出目录。
+
 ## 项目结构
 
 ```text
@@ -65,13 +98,17 @@ npm run preview   # 预览生产构建
 │   │   ├── exportPoster.js  # Canvas 2D 藏书票导出
 │   │   ├── supabase.js      # Supabase 客户端与配置检测
 │   │   ├── cardsApi.js      # 行与卡片对象映射、CRUD、个人状态合并
+│   │   ├── llm.js           # 调用 Edge Function，失败时返回降级信号
 │   │   └── constants.js     # 来源类型、主题、测试样本
 │   ├── App.jsx              # 应用状态、登录态、组合筛选与页面编排
 │   └── index.css            # 设计令牌、布局与三套主题
 ├── supabase/
 │   ├── init.sql             # 建表 + RLS + 6 条示例数据
-│   └── 02_personal_state.sql# 个人星标与批注表
+│   ├── 02_personal_state.sql# 个人星标与批注表
+│   └── functions/distill/   # Edge Function：调 DeepSeek 生成卡片字段
+├── public/_redirects        # Cloudflare Pages 的 SPA 回退
 ├── DESIGN.md                # 视觉与交互设计规范
+├── wrangler.toml            # Cloudflare Pages 部署配置
 ├── index.html
 └── vite.config.js
 ```
@@ -116,6 +153,14 @@ Playwright 端到端覆盖主题切换与持久化、三份样本装填、四维
 **示例卡片可以收藏和批注了。** 第一版把星标和批注直接写在卡片行上，结果是谁收藏了别人也看得见，公开默认被个人操作污染。改成独立的状态表 `distill_card_personal`，按 `(user_id, card_id)` 存每个人的星标与批注——卡片是内容，状态是各自的。退出登录后示例卡立刻回到「自带批注 + 未收藏」。批注字段用 `null` 区分「没写过」和「主动清空」，只点星标不会把示例批注吞掉。
 
 **测试跟着改。** 所有断言从实际数据推算期望值，不再写死卡片数量；新增最关键的一条：退出登录后示例卡必须回到公开默认。
+
+### v0.4 · 接上真实大模型
+
+**为什么不在前端调模型。** `VITE_*` 变量会被 Vite 打进 JS 产物，任何人打开 DevTools 都能拿到。Anon Key 无所谓（有 RLS 兜着），大模型 Key 不行——泄露就是别人的免费额度。所以调用挪到 Supabase Edge Function，Key 存成 Secret。
+
+**函数做三件事。** 校验用户 JWT，否则匿名拿 anon key 就能刷额度；调 DeepSeek 并强制 JSON 输出；服务端再校验一遍字段与长度，脏数据直接拒绝而不是入库。
+
+**降级是默认行为。** 函数报错、超时或没配 Key，前端自动回落到本地启发式算法，界面一行不改，只在提示里说明这次不是模型生成的。演示不会因为网络或额度中断。
 
 ## 数据说明
 

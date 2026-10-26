@@ -113,13 +113,13 @@ export default function App() {
   const starredCount = cards.filter((card) => card.starred).length
   const filtering = Boolean(query.trim() || starredOnly || sourceFilter !== 'all' || activeTag)
 
-  const handleDistill = async (draft) => {
+  const handleDistill = async (draft, meta = {}) => {
     if (!session) { requireAuth('distill'); return false }
     try {
       const created = await insertCard({ ...draft, key_takeaways: draft.key_takeaways.slice(0, 3) }, session.user.id)
       setCards((previous) => [created, ...previous])
       setQuery(''); setSourceFilter('all'); setStarredOnly(false); setActiveTag(null)
-      showToast('新切片已压入云端归档，点击继续阅读与导出')
+      showToast(meta.aiFallback ? '大模型暂不可用，已用本地算法完成归档' : '新切片已压入云端归档，点击继续阅读与导出')
       setTimeout(() => document.getElementById('archive')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250)
       return true
     } catch (error) {
