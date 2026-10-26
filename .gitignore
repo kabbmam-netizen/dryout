@@ -37,3 +37,9 @@ pnpm-debug.log*
 .workbuddy/
 .workbuddy-ai/
 .wbapp_*.genie
+.wrangler/
+supabase/.temp/
+
+# 测试与构建产物
+test-results/
+playwright-report/

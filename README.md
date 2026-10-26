@@ -11,6 +11,8 @@
 - **思想画廊**：以高光金句为视觉主体，关键词、来源、标签与星标四者可任意叠加筛选；点击卡片标签即按标签收敛，顶栏出现可单独清除的标签徽章。
 - **阅读与批注**：三段式结构化论据配合可编辑个人批注，形成完整的阅读与复盘闭环。
 - **账户与云端同步**：邮箱密码注册登录，归档存进 Supabase。未登录也能浏览公开切片，点脱水、星标、批注、删除时才要求登录；星标与批注按人隔离，退出登录立刻回到公开默认。
+- **默认私密，按需公开**：新建卡片默认只有自己可见，详情抽屉里可一键切换公开 / 私密，卡片上直接标出当前状态。
+- **产出方式可追溯**：每张卡都记着是 DeepSeek 生成的还是本地算法降级的，卡片与详情里都有角标。
 - **藏书票导出**：提供三套平面构成配色，可一键生成并下载 1080 × 1440 高清金句卡片。
 - **三套视觉主题**：原色构成、蓝图纸版与夜间展厅，均采用平涂色块、粗线框和硬边投影。
 - **可复现的测试样本**：内置播客、视频、深度长文三份样本，一键装填标题、来源与正文，快速验证整条提炼链路。
@@ -47,8 +49,10 @@ npm run dev
 ```
 
 ```bash
-npm run build     # 生产构建
-npm run preview   # 预览生产构建
+npm run build      # 生产构建
+npm run preview    # 预览生产构建
+npm run lint       # ESLint
+npm run test:e2e   # Playwright（没配 Supabase 时只跑冒烟部分）
 ```
 
 默认访问地址：`http://localhost:5173`
@@ -59,7 +63,10 @@ npm run preview   # 预览生产构建
 
 ### 1. Supabase（数据库 + 登录 + 大模型代理）
 
-1. SQL Editor 依次执行 `supabase/init.sql`、`supabase/02_personal_state.sql`
+1. SQL Editor 执行 `supabase/init.sql`（幂等，可重复执行，不会删数据）
+   - 旧库升级：跑完 init.sql 再跑一次 `supabase/migrate-private.sql`，把历史用户卡片转为私密
+   - 想要第 8 张 AI 样本卡：再跑 `supabase/seed-ai-sample.sql`
+   - 只有想清空演示数据时才用 `supabase/reset.sql`（⚠️ 破坏性）
 2. Edge Functions → 新建函数 `distill` → 粘贴 `supabase/functions/distill/index.ts` → Deploy
 3. Project Settings → Edge Functions → Secrets 里加 `DEEPSEEK_API_KEY`
 4. Authentication → 关闭邮箱验证，注册后可直接登录
@@ -131,7 +138,12 @@ npx wrangler pages deploy dist --project-name dryout
 ```text
 .
 ├── src/
-│   ├── components/          # 控制台、画廊卡片、详情抽屉、登录弹窗、藏书票
+│   ├── components/          # 控制台、画廊卡片、详情抽屉、登录弹窗、藏书票、错误兜底
+│   ├── hooks/
+│   │   ├── useAuth.js       # 会话订阅、登录弹窗开关与原因
+│   │   ├── useCards.js      # 拉取与合并、四维筛选、星标/批注/可见性/删除
+│   │   ├── useTheme.js      # 三套主题与持久化
+│   │   └── useToast.js      # 单条 toast
 │   ├── lib/
 │   │   ├── distill.js       # 本地启发式脱水：切句、打分、标签与标题推断
 │   │   ├── sourceImport.js  # 链接规范化、平台识别、字幕解析、附件元信息
@@ -140,17 +152,40 @@ npx wrangler pages deploy dist --project-name dryout
 │   │   ├── cardsApi.js      # 行与卡片对象映射、CRUD、个人状态合并
 │   │   ├── llm.js           # 调用 Edge Function，失败时返回降级信号
 │   │   └── constants.js     # 来源类型、主题、测试样本
-│   ├── App.jsx              # 应用状态、登录态、组合筛选与页面编排
+│   ├── App.jsx              # 只做编排：组合 hooks 与 JSX
 │   └── index.css            # 设计令牌、布局与三套主题
 ├── supabase/
-│   ├── init.sql             # 建表 + RLS + 6 条示例数据
-│   ├── 02_personal_state.sql# 个人星标与批注表
+│   ├── init.sql             # 幂等建库：表 + 增量迁移 + RLS + 6 条示例数据
+│   ├── reset.sql            # ⚠️ 破坏性：清空全部卡片与个人状态
+│   ├── migrate-private.sql  # 一次性：把已有用户卡片转为私密
+│   ├── seed-ai-sample.sql   # 第 8 张卡：DeepSeek 真实生成的证据样本
 │   └── functions/distill/   # Edge Function：调 DeepSeek 生成卡片字段
+├── tests/                   # Playwright：smoke（无需密钥）+ archive（需数据）
 ├── public/_redirects        # Cloudflare Pages 的 SPA 回退
 ├── DESIGN.md                # 视觉与交互设计规范
+├── LICENSE                  # MIT
+├── eslint.config.js
+├── playwright.config.js
 ├── index.html
 └── vite.config.js
 ```
+
+## 测试
+
+仓库里的 E2E 是 Node 版 Playwright，分两组：
+
+| 文件 | 依赖 | 说明 |
+| --- | --- | --- |
+| `tests/smoke.spec.js` | 无 | 页面骨架、三套主题与持久化、样本装填、校验提示、1440/940/700/390 四档横向溢出 |
+| `tests/archive.spec.js` | 需 Supabase 数据 | 分类 / 标签 / 关键词组合筛选、编号不随筛选变化、详情抽屉 ESC 与角标 |
+
+```bash
+npm run test:e2e
+```
+
+没配 `VITE_SUPABASE_URL` 时画廊为空，`archive.spec.js` 会整组自动跳过——所以 CI 不需要任何密钥也能跑通冒烟部分。
+
+更深的验收（注册登录、真实增删改查、大模型链路、降级路径）需要真实账号与 DeepSeek Key，没有入库，属于本地开发时的手工验收。
 
 ## 迭代记录
 
@@ -181,7 +216,7 @@ npx wrangler pages deploy dist --project-name dryout
 播客、视频、长文各一份：视频样本带时间码，长文样本密集包含信号词，用来验证提炼逻辑在不同输入形态下都成立。
 
 **验证方式**
-Playwright 端到端覆盖主题切换与持久化、三份样本装填、四维筛选组合、详情 ESC / 遮罩关闭、三套藏书票配色与复制；1440 / 940 / 700 / 390 四档视口横向溢出均为 0。
+当时用的是本地 Python + Playwright 脚本，没有入库。现在仓库里有了正式的 `tests/`（见 v0.5），那批脚本已被替换。
 
 ### v0.3 · 从本地演示走向真实云端
 
@@ -200,6 +235,24 @@ Playwright 端到端覆盖主题切换与持久化、三份样本装填、四维
 **函数做三件事。** 校验用户 JWT，否则匿名拿 anon key 就能刷额度；调 DeepSeek 并强制 JSON 输出；服务端再校验一遍字段与长度，脏数据直接拒绝而不是入库。
 
 **降级是默认行为。** 函数报错、超时或没配 Key，前端自动回落到本地启发式算法，界面一行不改，只在提示里说明这次不是模型生成的。演示不会因为网络或额度中断。
+
+### v0.5 · 把「说过的」和「做到的」对齐
+
+一次针对仓库描述的审计，逐条核验后发现七处描述与实现不符或工程卫生问题，这一版把它们全部修掉。
+
+**默认全部公开（安全）。** `cardToRow` 写的是 `is_public: card.isPublic !== false`，而草稿里没有 `isPublic` 字段，于是每张新建卡片都默认公开——匿名访客用 anon key 就能读到别人的整张卡片，包括 `user_id`。改成 `isPublic === true` 才公开，并在详情抽屉里给了「公开 / 私密」开关，卡片与抽屉上都显示当前状态。存量数据用 `migrate-private.sql` 一次性转为私密。
+
+**AI 效果不可追溯。** `distilledBy` 一直只存在于前端草稿里，落库时被丢掉了，事后无法判断哪张卡是模型生成、哪张是本地算法降级。新增 `distilled_by` 列（`llm` / `local`），卡片与抽屉都显示角标，`seed-ai-sample.sql` 里那第 8 张卡就是 DeepSeek 的真实输出，原稿一并附在脚本注释里。
+
+**建库脚本是破坏性的。** 原 `init.sql` 开头 `drop table ... cascade`，会连带删掉个人状态表的外键约束，留下一张无约束的孤儿表。重写成幂等脚本：`create table if not exists` + `alter table add column if not exists` + 种子 `on conflict do nothing`，重复执行不丢数据；破坏性版本单独放进 `reset.sql`。
+
+**来源类型的语义错了。** `bilibili` 把平台当成了格式，YouTube 链接被映射成 `type: 'bilibili'`。类型改为描述形态：`podcast` / `video` / `article`，B 站与 YouTube 都是 `video`，平台差异留在 `source_name` 里。
+
+**README 声称有 Playwright 测试，仓库里一个都没有。** 现在 `tests/` 下有真正的 Node 版用例，并在 CI 里跑；README 的表述也改成如实描述，不再暗示仓库里有更多。
+
+**工程卫生。** 补 MIT LICENSE；删掉零引用的 Vite 模板资源与 `supabase/.temp/`；ESLint 9 + Prettier + GitHub Actions（lint → build → e2e）；加 ErrorBoundary，渲染异常时给出可复制的错误信息而不是白屏；表结构去冗余——删掉恒为 false 的 `starred` 列，`personal_note` 改名 `sample_note` 以区别于个人状态表里的同名概念。
+
+**App.jsx 拆分。** 12.8KB 的单一组件拆成 `useAuth` / `useCards` / `useTheme` / `useToast` 四个 hook，`App.jsx` 只保留编排与 JSX，行为零变化。
 
 ## 数据说明
 

@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDownToLine, Check, Copy, Loader2, NotebookPen, Save, Star, Trash2, X } from 'lucide-react'
+import { ArrowDownToLine, Check, Copy, Globe, Loader2, Lock, NotebookPen, Save, Star, Trash2, X } from 'lucide-react'
 import { POSTER_THEMES, SOURCE_TYPES } from '../lib/constants'
 import { downloadQuotePoster } from '../lib/exportPoster'
 import QuotePoster, { formatPosterDate } from './QuotePoster'
 
-export default function DetailModal({ card, onClose, onToggleStar, onSaveNote, onDelete, onToast, authOpen, isOwner }) {
+export default function DetailModal({ card, onClose, onToggleStar, onSaveNote, onDelete, onToggleVisibility, onToast, authOpen, isOwner }) {
   const [note, setNote] = useState(card.personal_note || '')
   const [theme, setTheme] = useState('primary')
   const [downloading, setDownloading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [switching, setSwitching] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const panelRef = useRef(null)
@@ -37,6 +38,13 @@ export default function DetailModal({ card, onClose, onToggleStar, onSaveNote, o
       setSaved(true)
       setTimeout(() => setSaved(false), 1800)
     }
+  }
+
+  const switchVisibility = async () => {
+    if (switching) return
+    setSwitching(true)
+    await onToggleVisibility(card.id, !card.isPublic)
+    setSwitching(false)
   }
 
   const requestDelete = async () => {
@@ -76,7 +84,19 @@ export default function DetailModal({ card, onClose, onToggleStar, onSaveNote, o
           <div className="detail-reading">
             <div className="detail-source"><span className={`source-stamp source-stamp--${card.sourceType}`}><i className={`geo geo--${source.shape}`} /><source.Icon size={14} />{source.label}</span><span>{card.sourceName} · {card.meta}</span></div>
             <h2 id="detail-title">{card.title}</h2>
-            <button type="button" className={`detail-star ${card.starred ? 'is-starred' : ''}`} onClick={() => onToggleStar(card.id)}><Star size={16} fill={card.starred ? 'currentColor' : 'none'} />{card.starred ? '已星标收藏' : '加入星标收藏'}</button>
+            <div className="detail-badges">
+              <span className={`detail-badge ${card.distilledBy === 'llm' ? 'is-llm' : ''}`}>{card.distilledBy === 'llm' ? 'AI 提炼' : '本地算法'}</span>
+              <span className={`detail-badge ${card.isPublic ? 'is-public' : ''}`}>{card.isPublic ? '公开' : '私密'}</span>
+            </div>
+            <div className="detail-actions">
+              <button type="button" className={`detail-star ${card.starred ? 'is-starred' : ''}`} onClick={() => onToggleStar(card.id)}><Star size={16} fill={card.starred ? 'currentColor' : 'none'} />{card.starred ? '已星标收藏' : '加入星标收藏'}</button>
+              {isOwner && (
+                <button type="button" className={`detail-visibility ${card.isPublic ? 'is-public' : ''}`} onClick={switchVisibility} disabled={switching}>
+                  {card.isPublic ? <Globe size={15} /> : <Lock size={15} />}
+                  {switching ? '切换中…' : card.isPublic ? '公开可见 · 点击转为私密' : '仅自己可见 · 点击公开'}
+                </button>
+              )}
+            </div>
             <blockquote className="detail-quote">“{card.golden_quote}”</blockquote>
             <div className="detail-summary"><span className="eyebrow">ONE CLEAR IDEA / 核心结论</span><p>{card.one_line_summary}</p></div>
 

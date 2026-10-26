@@ -11,7 +11,11 @@ export default function DehydratedCard({ card, index, number, onOpen, onToggleSt
         <button className="card-open-layer" type="button" onClick={() => onOpen(card.id)} aria-label={`阅读归档：${card.title}`} />
         <div className="card-topline">
           <span className="source-stamp"><i className={`geo geo--${source.shape}`} /><source.Icon size={14} />{source.short}</span>
-          <span className="archive-number">DRY—{code}</span>
+          <span className="card-topline-right">
+            {card.distilledBy === 'llm' && <em className="card-flag card-flag--ai">AI</em>}
+            {!card.isPublic && <em className="card-flag">私密</em>}
+            <span className="archive-number">DRY—{code}</span>
+          </span>
         </div>
         <blockquote>“{card.golden_quote}”</blockquote>
         <div className="card-summary"><span>ONE CLEAR IDEA</span><p>{card.one_line_summary}</p></div>

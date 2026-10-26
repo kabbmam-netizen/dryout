@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 仓库里不提交 package-lock.json（本机是 Windows，lockfile 缺 Linux 原生绑定），
+      # 因此用 npm install 让 Linux 环境自行解析依赖树
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      # 冒烟用例不依赖 Supabase：没配环境变量时应用渲染空画廊，断言依然成立
+      - name: E2E (smoke)
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

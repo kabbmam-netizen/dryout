@@ -14,8 +14,9 @@ export function normalizeSourceUrl(value) {
 export function getSourcePlatform(value) {
   try {
     const hostname = new URL(value).hostname.replace(/^www\./, '').toLowerCase()
-    if (hostname.includes('bilibili.com') || hostname === 'b23.tv') return { type: 'bilibili', platform: 'Bilibili', hostname }
-    if (hostname.includes('youtube.com') || hostname === 'youtu.be') return { type: 'bilibili', platform: 'YouTube', hostname }
+    if (hostname.includes('bilibili.com') || hostname === 'b23.tv') return { type: 'video', platform: 'Bilibili', hostname }
+    // YouTube 同样是视频形态，只是平台不同——类型跟着形态走，不跟着平台走
+    if (hostname.includes('youtube.com') || hostname === 'youtu.be') return { type: 'video', platform: 'YouTube', hostname }
     if (hostname.includes('xiaoyuzhoufm.com')) return { type: 'podcast', platform: '小宇宙', hostname }
     if (hostname.includes('podcasts.apple.com')) return { type: 'podcast', platform: 'Apple Podcasts', hostname }
     if (hostname.includes('spotify.com')) return { type: 'podcast', platform: 'Spotify', hostname }
@@ -110,5 +111,5 @@ export async function importSourceFile(file) {
   if (file.size > MAX_MEDIA_SIZE) throw new Error('音视频文件不能超过 2 GB。')
   const kind = isVideo ? 'video' : 'audio'
   const duration = await readMediaDuration(file, kind)
-  return { kind, name: file.name, size: formatFileSize(file.size), duration: formatMediaDuration(duration), text: '', cueCount: 0, sourceType: isVideo ? 'bilibili' : 'podcast' }
+  return { kind, name: file.name, size: formatFileSize(file.size), duration: formatMediaDuration(duration), text: '', cueCount: 0, sourceType: isVideo ? 'video' : 'podcast' }
 }

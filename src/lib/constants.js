@@ -1,8 +1,9 @@
 import { FileText, Headphones, Video } from 'lucide-react'
 
+// 类型描述的是「内容形态」而不是平台：B 站和 YouTube 都是 video，用 platform 区分
 export const SOURCE_TYPES = {
   podcast: { value: 'podcast', label: '播客', short: 'PODCAST', Icon: Headphones, shape: 'circle' },
-  bilibili: { value: 'bilibili', label: '视频', short: 'VIDEO', Icon: Video, shape: 'square' },
+  video: { value: 'video', label: '视频', short: 'VIDEO', Icon: Video, shape: 'square' },
   article: { value: 'article', label: '深度长文', short: 'ARTICLE', Icon: FileText, shape: 'half' },
 }
 
@@ -53,7 +54,7 @@ export const SAMPLES = [
     id: 'sample-video',
     label: '样本 2 · 视频',
     short: '视频',
-    sourceType: 'bilibili',
+    sourceType: 'video',
     title: '节奏不是快慢，是让人愿意留下来',
     text: SAMPLE_VIDEO_TRANSCRIPT,
   },

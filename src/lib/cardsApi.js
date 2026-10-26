@@ -1,5 +1,8 @@
 import { requireSupabase } from './supabase'
 
+// 注意两处命名差异：
+//   distill_cards.sample_note  → 前端 personal_note（"我看到的那条批注"，可能是示例也可能是我的）
+//   个人状态表 personal_note    → 我真正写过的那条，null 表示没写过
 const CARD_COLUMNS = [
   'id',
   'user_id',
@@ -13,14 +16,14 @@ const CARD_COLUMNS = [
   'one_line_summary',
   'key_takeaways',
   'tags',
-  'personal_note',
-  'starred',
+  'sample_note',
+  'distilled_by',
   'is_public',
   'created_at',
   'note_updated_at',
 ].join(',')
 
-/** 数据库行 → 前端卡片对象，字段名与 mockCards / distill.js 保持一致 */
+/** 数据库行 → 前端卡片对象，字段名与 distill.js 的输出保持一致 */
 export function rowToCard(row) {
   return {
     id: row.id,
@@ -35,9 +38,11 @@ export function rowToCard(row) {
     one_line_summary: row.one_line_summary,
     key_takeaways: row.key_takeaways || [],
     tags: row.tags || [],
-    personal_note: row.personal_note || '',
-    starred: Boolean(row.starred),
-    isPublic: row.is_public,
+    personal_note: row.sample_note || '',
+    // 星标只存在于个人状态表；卡片行不再存
+    starred: false,
+    distilledBy: row.distilled_by || 'local',
+    isPublic: Boolean(row.is_public),
     createdAt: row.created_at,
     noteUpdatedAt: row.note_updated_at,
   }
@@ -57,9 +62,9 @@ export function cardToRow(card, userId) {
     one_line_summary: card.one_line_summary,
     key_takeaways: card.key_takeaways || [],
     tags: card.tags || [],
-    personal_note: card.personal_note || '',
-    starred: Boolean(card.starred),
-    is_public: card.isPublic !== false,
+    // 新建卡片默认私密：个人知识库不该默认对外
+    is_public: card.isPublic === true,
+    distilled_by: card.distilledBy === 'llm' ? 'llm' : 'local',
   }
 }
 
@@ -125,6 +130,19 @@ export async function savePersonalState(cardId, userId, patch) {
     .from('distill_card_personal')
     .upsert({ user_id: userId, card_id: cardId, ...patch }, { onConflict: 'user_id,card_id' })
     .select('card_id')
+  if (error) throw error
+  if (!data || data.length === 0) throw new PermissionError()
+  return true
+}
+
+/** 切换公开 / 私密，仅卡片创建者可调用（RLS 兜底） */
+export async function updateCardVisibility(id, isPublic) {
+  const client = requireSupabase()
+  const { data, error } = await client
+    .from('distill_cards')
+    .update({ is_public: isPublic })
+    .eq('id', id)
+    .select('id')
   if (error) throw error
   if (!data || data.length === 0) throw new PermissionError()
   return true
