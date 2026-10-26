@@ -1,6 +1,8 @@
 import { requireSupabase, supabaseReady } from './supabase'
 
 const TIMEOUT_MS = 20000
+// 默认函数名 distill；如果部署时用了别的名字，用 VITE_DISTILL_FUNCTION 覆盖
+const FUNCTION_NAME = import.meta.env.VITE_DISTILL_FUNCTION || 'distill'
 
 /**
  * 调用 Edge Function 让大模型生成卡片字段。
@@ -14,7 +16,7 @@ export async function requestDistill({ text, title, sourceType }) {
 
   const call = async () => {
     const client = requireSupabase()
-    const { data, error } = await client.functions.invoke('distill', {
+    const { data, error } = await client.functions.invoke(FUNCTION_NAME, {
       body: { text: text.slice(0, 12000), title, sourceType },
     })
     if (error) {

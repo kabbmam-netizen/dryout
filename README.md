@@ -35,6 +35,7 @@
 # 1. 配置环境变量：在项目根目录新建 .env
 #    VITE_SUPABASE_URL=https://<your-project>.supabase.co
 #    VITE_SUPABASE_ANON_KEY=<your-anon-key>
+#    VITE_DISTILL_FUNCTION=distill   # 可选，函数名不同时覆盖
 
 # 2. 在 Supabase SQL Editor 里依次执行
 #    supabase/init.sql            -- 建表、RLS、6 条示例数据
@@ -64,6 +65,8 @@ npm run preview   # 预览生产构建
 4. Authentication → 关闭邮箱验证，注册后可直接登录
 
 大模型 Key 只存在 Supabase Secret，不会进前端产物；没配 Key 时应用会自动降级到本地算法。
+
+> 如果函数名不是 `distill`（Supabase 新建时会自动生成一个随机名），在前端环境变量里加一条 `VITE_DISTILL_FUNCTION=<你的函数名>` 即可，不用改代码。
 
 ### 2. Cloudflare Pages（前端）
 
