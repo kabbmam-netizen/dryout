@@ -1,7 +1,11 @@
-# Cloudflare Pages 配置
-# 部署：npx wrangler pages deploy dist --project-name vibedistill
-# 或在 Cloudflare Dashboard 里接 Git 仓库，构建命令 npm run build、输出目录 dist
+# Cloudflare Workers（静态资源）配置
+# 部署：npx wrangler deploy
+# 或在 Cloudflare Dashboard 接 Git 仓库，构建命令 npm run build、部署命令 npx wrangler deploy
 
-name = "vibedistill"
-pages_build_output_dir = "./dist"
+name = "dryout"
 compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./dist"
+# 单页应用回退：任何未命中的路径都返回 index.html
+not_found_handling = "single-page-application"

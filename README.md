@@ -68,26 +68,36 @@ npm run preview   # 预览生产构建
 
 > 如果函数名不是 `distill`（Supabase 新建时会自动生成一个随机名），在前端环境变量里加一条 `VITE_DISTILL_FUNCTION=<你的函数名>` 即可，不用改代码。
 
-### 2. Cloudflare Pages（前端）
+### 2. Cloudflare（前端）
 
 **方式一 · 接 Git 仓库（推荐）**
 
-Dashboard → Workers & Pages → Create → Pages → 连接 GitHub → 选 `kabbmam-netizen/dryout`：
+Dashboard → Workers & Pages → Create → 连接 GitHub → 选 `kabbmam-netizen/dryout`：
 
-- 构建命令 `npm run build`
-- 输出目录 `dist`
-- 环境变量 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`
+| 项 | 值 |
+| --- | --- |
+| 项目名 | `dryout` |
+| 构建命令 | `npm run build` |
+| 部署命令 | `npx wrangler deploy`（默认值，不用改） |
+| Preview builds | 关闭（`wrangler preview` 已废弃） |
 
-之后每次 push 自动部署。
+创建后到 **Settings → Build → Variables and secrets** 加两个**构建变量**（不是运行时变量，Vite 在构建时就把它们打进产物了）：
+
+```
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+```
+
+加完重新触发一次部署。
 
 **方式二 · 命令行**
 
 ```bash
 npm run build
-npx wrangler pages deploy dist --project-name vibedistill
+npx wrangler deploy
 ```
 
-`public/_redirects` 已经配好 SPA 回退，`wrangler.toml` 里指定了输出目录。
+`wrangler.toml` 里已经配好 `[assets]` 与 SPA 回退，`public/_redirects` 作为兜底一起带上。
 
 ## 项目结构
 
@@ -109,9 +119,9 @@ npx wrangler pages deploy dist --project-name vibedistill
 │   ├── init.sql             # 建表 + RLS + 6 条示例数据
 │   ├── 02_personal_state.sql# 个人星标与批注表
 │   └── functions/distill/   # Edge Function：调 DeepSeek 生成卡片字段
-├── public/_redirects        # Cloudflare Pages 的 SPA 回退
+├── public/_redirects        # SPA 回退（Cloudflare 静态资源兜底）
 ├── DESIGN.md                # 视觉与交互设计规范
-├── wrangler.toml            # Cloudflare Pages 部署配置
+├── wrangler.toml            # Cloudflare Workers 静态资源配置
 ├── index.html
 └── vite.config.js
 ```
