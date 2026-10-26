@@ -68,36 +68,29 @@ npm run preview   # 预览生产构建
 
 > 如果函数名不是 `distill`（Supabase 新建时会自动生成一个随机名），在前端环境变量里加一条 `VITE_DISTILL_FUNCTION=<你的函数名>` 即可，不用改代码。
 
-### 2. Cloudflare（前端）
+### 2. Cloudflare Pages（前端）
 
-**方式一 · 接 Git 仓库（推荐）**
-
-Dashboard → Workers & Pages → Create → 连接 GitHub → 选 `kabbmam-netizen/dryout`：
+Dashboard → Workers & Pages → Create → Pages → Connect to Git → 选 `kabbmam-netizen/dryout`：
 
 | 项 | 值 |
 | --- | --- |
 | 项目名 | `dryout` |
-| 构建命令 | `npm run build` |
-| 部署命令 | `npx wrangler deploy`（默认值，不用改） |
-| Preview builds | 关闭（`wrangler preview` 已废弃） |
+| Production branch | `main` |
+| Framework preset | `Vite`（选完会自动带出下面两项） |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Environment variables | `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY` |
 
-创建后到 **Settings → Build → Variables and secrets** 加两个**构建变量**（不是运行时变量，Vite 在构建时就把它们打进产物了）：
+环境变量在创建向导的 **Environment variables (advanced)** 里填，创建后也可以在 Settings → Environment variables 补。
 
-```
-VITE_SUPABASE_URL
-VITE_SUPABASE_ANON_KEY
-```
-
-加完重新触发一次部署。
-
-**方式二 · 命令行**
+命令行部署：
 
 ```bash
 npm run build
-npx wrangler deploy
+npx wrangler pages deploy dist --project-name dryout
 ```
 
-`wrangler.toml` 里已经配好 `[assets]` 与 SPA 回退，`public/_redirects` 作为兜底一起带上。
+`wrangler.toml` 里的 `pages_build_output_dir` 和 `public/_redirects` 都已经配好，产物目录与 SPA 回退不用另外设置。
 
 ## 项目结构
 
@@ -119,9 +112,9 @@ npx wrangler deploy
 │   ├── init.sql             # 建表 + RLS + 6 条示例数据
 │   ├── 02_personal_state.sql# 个人星标与批注表
 │   └── functions/distill/   # Edge Function：调 DeepSeek 生成卡片字段
-├── public/_redirects        # SPA 回退（Cloudflare 静态资源兜底）
+├── public/_redirects        # Cloudflare Pages 的 SPA 回退
 ├── DESIGN.md                # 视觉与交互设计规范
-├── wrangler.toml            # Cloudflare Workers 静态资源配置
+├── wrangler.toml            # Cloudflare Pages 部署配置
 ├── index.html
 └── vite.config.js
 ```
