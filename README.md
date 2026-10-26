@@ -92,6 +92,8 @@ npx wrangler pages deploy dist --project-name dryout
 
 `wrangler.toml` 里的 `pages_build_output_dir` 和 `public/_redirects` 都已经配好，产物目录与 SPA 回退不用另外设置。
 
+> 仓库里没有提交 `package-lock.json`：本机的 lockfile 只包含 Windows 原生绑定（`@rolldown/binding-win32-x64-msvc`），缺少 Linux 版本会让 Cloudflare 这类 Linux 构建环境报 `Cannot find module 'vite'`。让 CI 自行解析依赖树即可。
+
 ## 项目结构
 
 ```text

@@ -2,6 +2,11 @@
 node_modules/
 .pnpm-store/
 
+# Lockfile 由本机（Windows）生成，只含 win32 原生绑定（如 @rolldown/binding-win32-x64-msvc），
+# 缺 Linux 版本会让 Cloudflare / Vercel 这类 Linux 构建环境报 Cannot find module 'vite'。
+# 故不提交，交给 CI 在 Linux 上自行解析依赖树。
+/package-lock.json
+
 # Build output
 dist/
 dist-ssr/
