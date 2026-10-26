@@ -10,7 +10,7 @@ import AuthDialog from './components/AuthDialog'
 import { SOURCE_OPTIONS } from './lib/constants'
 import { matchesQuery } from './lib/distill'
 import { supabase, supabaseReady } from './lib/supabase'
-import { deleteCardById, fetchCards, insertCard, updateCardFields } from './lib/cardsApi'
+import { deleteCardById, fetchCards, insertCard, savePersonalState } from './lib/cardsApi'
 
 const THEME_KEY = 'dryout.theme.v2'
 
@@ -75,17 +75,17 @@ export default function App() {
     if (!supabaseReady) { setLoadingCards(false); return }
     if (!loadedRef.current) setLoadingCards(true)
     try {
-      setCards(await fetchCards())
+      setCards(await fetchCards(userId))
       loadedRef.current = true
     } catch {
       showToast('云端归档拉取失败，请检查网络后刷新页面')
     } finally {
       setLoadingCards(false)
     }
-  }, [showToast])
+  }, [showToast, userId])
 
-  // 访客看到公开切片；登录后重新拉取，额外带上自己创建的私密切片
-  useEffect(() => { refreshCards() }, [refreshCards, userId])
+  // 访客看到公开切片；登录后重新拉取，把本人的星标与批注合并进来
+  useEffect(() => { refreshCards() }, [refreshCards])
 
   useEffect(() => {
     const handleKey = (event) => {
@@ -132,14 +132,13 @@ export default function App() {
     if (!session) { requireAuth('star'); return }
     const card = cards.find((item) => item.id === id)
     if (!card) return
-    if (card.userId !== session.user.id) { showToast('预置公开切片为只读，星标不会保存'); return }
     const next = !card.starred
-    setCards((previous) => previous.map((item) => (item.id === id ? { ...item, starred: next } : item)))
+    setCards((previous) => previous.map((item) => (item.id === id ? { ...item, starred: next, hasPersonal: true } : item)))
     try {
-      await updateCardFields(id, { starred: next })
+      await savePersonalState(id, session.user.id, { starred: next })
     } catch (error) {
       setCards((previous) => previous.map((item) => (item.id === id ? { ...item, starred: !next } : item)))
-      showToast(error.name === 'PermissionError' ? '这张切片不属于当前账户，无法修改' : '星标保存失败，请稍后重试')
+      showToast(error.name === 'PermissionError' ? '星标没有保存成功，请重新登录后再试' : '星标保存失败，请稍后重试')
     }
   }
 
@@ -147,17 +146,16 @@ export default function App() {
     if (!session) { requireAuth('note'); return false }
     const card = cards.find((item) => item.id === id)
     if (!card) return false
-    if (card.userId !== session.user.id) { showToast('预置公开切片为只读，批注不会保存'); return false }
-    const previousNote = card.personal_note
+    const before = { personal_note: card.personal_note, noteUpdatedAt: card.noteUpdatedAt, hasOwnNote: card.hasOwnNote }
     const stamp = new Date().toISOString()
-    setCards((previous) => previous.map((item) => (item.id === id ? { ...item, personal_note: note, noteUpdatedAt: stamp } : item)))
+    setCards((previous) => previous.map((item) => (item.id === id ? { ...item, personal_note: note, noteUpdatedAt: stamp, hasPersonal: true, hasOwnNote: true } : item)))
     try {
-      await updateCardFields(id, { personal_note: note, note_updated_at: stamp })
+      await savePersonalState(id, session.user.id, { personal_note: note, note_updated_at: stamp })
       showToast('个人批注已同步到云端')
       return true
     } catch (error) {
-      setCards((previous) => previous.map((item) => (item.id === id ? { ...item, personal_note: previousNote } : item)))
-      showToast(error.name === 'PermissionError' ? '这张切片不属于当前账户，无法保存批注' : '批注保存失败，请稍后重试')
+      setCards((previous) => previous.map((item) => (item.id === id ? { ...item, ...before } : item)))
+      showToast(error.name === 'PermissionError' ? '批注没有保存成功，请重新登录后再试' : '批注保存失败，请稍后重试')
       return false
     }
   }

@@ -70,14 +70,38 @@ export class PermissionError extends Error {
   }
 }
 
-export async function fetchCards() {
+export async function fetchCards(userId) {
   const client = requireSupabase()
   const { data, error } = await client
     .from('distill_cards')
     .select(CARD_COLUMNS)
     .order('created_at', { ascending: false })
   if (error) throw error
-  return (data || []).map(rowToCard)
+
+  const cards = (data || []).map(rowToCard)
+  if (!userId) return cards.map((card) => ({ ...card, hasPersonal: false, hasOwnNote: false }))
+
+  // 第二段：取本人对这批卡片的星标与批注，覆盖到卡片对象上
+  const { data: personal, error: personalError } = await client
+    .from('distill_card_personal')
+    .select('card_id,starred,personal_note,note_updated_at')
+    .eq('user_id', userId)
+  if (personalError) throw personalError
+
+  const byCard = new Map((personal || []).map((row) => [row.card_id, row]))
+  return cards.map((card) => {
+    const own = byCard.get(card.id)
+    if (!own) return { ...card, hasPersonal: false, hasOwnNote: false }
+    return {
+      ...card,
+      starred: Boolean(own.starred),
+      // null 表示"我还没写过"，沿用卡片自带的示例批注；'' 表示我主动清空了
+      personal_note: own.personal_note === null ? card.personal_note : own.personal_note,
+      noteUpdatedAt: own.note_updated_at,
+      hasPersonal: true,
+      hasOwnNote: own.personal_note !== null,
+    }
+  })
 }
 
 export async function insertCard(card, userId) {
@@ -91,14 +115,16 @@ export async function insertCard(card, userId) {
   return rowToCard(data)
 }
 
-/** RLS 拦截时 PostgREST 返回 0 行而不报错，这里用 select 回读来判断是否真的写成功 */
-export async function updateCardFields(id, patch) {
+/**
+ * 写个人状态。只传要改的字段：upsert 在冲突时只更新 payload 里出现的列，
+ * 所以只点星标不会把已写的批注清掉。
+ */
+export async function savePersonalState(cardId, userId, patch) {
   const client = requireSupabase()
   const { data, error } = await client
-    .from('distill_cards')
-    .update(patch)
-    .eq('id', id)
-    .select('id')
+    .from('distill_card_personal')
+    .upsert({ user_id: userId, card_id: cardId, ...patch }, { onConflict: 'user_id,card_id' })
+    .select('card_id')
   if (error) throw error
   if (!data || data.length === 0) throw new PermissionError()
   return true

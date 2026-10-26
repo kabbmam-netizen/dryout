@@ -86,7 +86,7 @@ export default function DetailModal({ card, onClose, onToggleStar, onSaveNote, o
             </section>
 
             <section className="notes-section">
-              <div className="detail-section-title"><NotebookPen size={20} /><h3>个人批注</h3><span>{dirty ? '有未保存修改' : card.noteUpdatedAt ? '已同步至云端' : '尚未填写'}</span></div>
+              <div className="detail-section-title"><NotebookPen size={20} /><h3>个人批注</h3><span>{dirty ? '有未保存修改' : card.hasOwnNote && card.noteUpdatedAt ? '已同步至云端' : !card.hasOwnNote && note ? '示例批注 · 未覆盖' : '尚未填写'}</span></div>
               <textarea value={note} onChange={(event) => { setNote(event.target.value); setSaved(false) }} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); save() } }} placeholder="它为什么戳中你？你准备把它用在哪里？" rows={5} />
               <div className="note-actions"><span>{note.length} 字 · Ctrl / ⌘ + Enter</span><button type="button" onClick={save} disabled={!dirty || saving}>{saved ? <Check size={16} /> : <Save size={16} />}{saving ? '正在保存…' : saved ? '已保存' : '保存批注'}</button></div>
             </section>
