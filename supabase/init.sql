@@ -69,8 +69,10 @@ alter table public.distill_cards add column if not exists distilled_by text    n
 alter table public.distill_cards drop column if exists starred;
 
 -- 2.3 来源类型从「平台」改为「形态」：bilibili → video
-update public.distill_cards set source_type = 'video' where source_type = 'bilibili';
-
+--     顺序很重要：**先拆旧约束，再改数据，最后建新约束**。
+--     反过来写的话，update 会被旧的 check（只允许 podcast/bilibili/article）拦住；
+--     而 SQL Editor 把整份脚本当一个事务，一条失败就全部回滚，
+--     表现出来就是「脚本跑完了但什么都没变」。
 do $$
 declare c record;
 begin
@@ -84,6 +86,8 @@ begin
   end loop;
 end $$;
 
+update public.distill_cards set source_type = 'video' where source_type = 'bilibili';
+
 alter table public.distill_cards
   add constraint distill_cards_source_type_check
   check (source_type in ('podcast', 'video', 'article'));
@@ -92,6 +96,10 @@ alter table public.distill_cards drop constraint if exists distill_cards_distill
 alter table public.distill_cards
   add constraint distill_cards_distilled_by_check
   check (distilled_by in ('llm', 'local'));
+
+-- 2.4 旧表的 is_public 默认值是 true，改成 false（新表建表时已经是 false）
+--     前端插入时总会显式传 is_public，这里改默认值是为了兜住直接写 SQL 的场景
+alter table public.distill_cards alter column is_public set default false;
 
 
 comment on table  public.distill_cards                is '长内容脱水后的归档卡片；user_id 为 null 的是公开演示数据';
