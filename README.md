@@ -2,7 +2,7 @@
 
 把播客、视频和深度长文，脱水成一句值得记住的话。一个面向长内容整理与个人知识归档的交互式前端作品。
 
-[在线体验](https://dryout-idea-slicer.apps.workbuddy.host/?sharecode=3SJVVFVOPZ)
+[在线体验](https://dryout.pages.dev)
 
 ## 核心亮点
 
