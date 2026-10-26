@@ -8,6 +8,8 @@ import { expect, test } from '@playwright/test'
 test.describe('思想画廊', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
+    // 等首屏加载结束：卡片或空状态任一出现，否则会在数据返回前就判空
+    await page.locator('.archive-card, .empty-state').first().waitFor({ timeout: 20_000 })
     const count = await page.locator('.archive-card').count()
     test.skip(count === 0, '画廊为空：未配置 Supabase 或没有公开卡片')
   })
@@ -72,6 +74,7 @@ test.describe('思想画廊', () => {
 test.describe('详情抽屉', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
+    await page.locator('.archive-card, .empty-state').first().waitFor({ timeout: 20_000 })
     const count = await page.locator('.archive-card').count()
     test.skip(count === 0, '画廊为空，跳过抽屉用例')
     await page.locator('.card-main').first().click()
