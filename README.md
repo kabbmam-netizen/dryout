@@ -61,27 +61,29 @@ npm run preview   # 预览生产构建
 
 1. SQL Editor 依次执行 `supabase/init.sql`、`supabase/02_personal_state.sql`
 2. Edge Functions → 新建函数 `distill` → 粘贴 `supabase/functions/distill/index.ts` → Deploy
-3. 该项目的 Secrets 里加 `DEEPSEEK_API_KEY`
+3. Project Settings → Edge Functions → Secrets 里加 `DEEPSEEK_API_KEY`
 4. Authentication → 关闭邮箱验证，注册后可直接登录
 
 大模型 Key 只存在 Supabase Secret，不会进前端产物；没配 Key 时应用会自动降级到本地算法。
 
-> 如果函数名不是 `distill`（Supabase 新建时会自动生成一个随机名），在前端环境变量里加一条 `VITE_DISTILL_FUNCTION=<你的函数名>` 即可，不用改代码。
+> 函数名如果不是 `distill`（Supabase 新建时会自动生成随机名），在前端加一条 `VITE_DISTILL_FUNCTION=<函数名>` 即可，不用改代码。
 
 ### 2. Cloudflare Pages（前端）
 
-Dashboard → Workers & Pages → Create → Pages → Connect to Git → 选 `kabbmam-netizen/dryout`：
+Dashboard → Workers & Pages → Create → Pages → Connect to Git → 选本仓库，然后填：
 
 | 项 | 值 |
 | --- | --- |
 | 项目名 | `dryout` |
 | Production branch | `main` |
-| Framework preset | `Vite`（选完会自动带出下面两项） |
+| Framework preset | `None`（下面两项手动填） |
 | Build command | `npm run build` |
 | Build output directory | `dist` |
-| Environment variables | `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY` |
+| 环境变量 | `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY` |
 
-环境变量在创建向导的 **Environment variables (advanced)** 里填，创建后也可以在 Settings → Environment variables 补。
+环境变量在 **Settings → Build → Variables and secrets** 里加，两条都要落在 Production 作用域。
+
+仓库里**刻意不放** `wrangler.toml`、也**不提交** `package-lock.json`，原因见下一节。
 
 命令行部署：
 
@@ -90,11 +92,39 @@ npm run build
 npx wrangler pages deploy dist --project-name dryout
 ```
 
-构建配置直接写在 Pages 项目的 Settings 里（构建命令 `npm run build`、输出目录 `dist`），仓库中不放 `wrangler.toml`——它会让 Pages 改从文件读取构建配置，反而覆盖掉面板里的环境变量。
+## 上线踩坑记录
 
-> 仓库里没有提交 `package-lock.json`：本机的 lockfile 只包含 Windows 原生绑定（`@rolldown/binding-win32-x64-msvc`），缺少 Linux 版本会让 Cloudflare 这类 Linux 构建环境报 `Cannot find module 'vite'`。让 CI 自行解析依赖树即可。
->
-> 改了依赖相关配置后注意：Pages 的 **Retry deployment 重试的是同一个 commit**，改动不会生效，要等推送触发的自动构建，或对最新 commit 新建一次部署。
+部署时真正踩到的四个坑。共同点是现象很有迷惑性——构建显示成功、页面能打开，但结果不对。
+
+### 1. 仓库里的 `wrangler.toml` 会吞掉面板里的环境变量
+
+**现象**：构建成功、页面能打开，但画廊永远是空的，控制台也不报错。
+
+**根因**：构建日志里 `Found wrangler.toml file. Reading build configuration...` 之后紧跟 `Build environment variables: (none found)`。Pages 一旦在仓库里检测到 `wrangler.toml`，就改从文件读取构建配置，面板里的 `VITE_*` 不再注入构建环境。Vite 是构建时把变量写进 JS 的，读不到就是 `undefined`，应用直接跳过数据请求、渲染空状态。
+
+**怎么发现**：下载线上 JS，搜数据库地址。搜不到就说明变量没进去。
+
+**修法**：删掉 `wrangler.toml`，构建配置全写在面板里。
+
+### 2. Windows 生成的 `package-lock.json` 会让 Linux 构建失败
+
+**现象**：`Cannot find module 'vite'`，或 `npm ci` 报 `Missing: @rolldown/binding-linux-x64-gnu from lock file`。
+
+**根因**：Vite 8 用 rolldown，依赖平台专属的原生二进制。本机（Windows）生成的 lockfile 只记录 `@rolldown/binding-win32-x64-msvc`，Linux 构建环境装不出对应绑定。
+
+**修法**：不提交 lockfile，交给 CI 在 Linux 上解析依赖树。
+
+### 3. Retry deployment 重试的是同一个 commit
+
+**现象**：改了配置点重试，日志和产物一模一样，像是改动没生效。
+
+**根因**：Pages 的 Retry 重建的是**同一个 commit**，只改面板设置不会改变源码树。涉及依赖或文件增删的改动，必须等新推送触发的构建。
+
+### 4. 框架预设选错会生成完全无关的构建命令
+
+**现象**：日志里出现 `Executing user command: npx vitepress build`，然后去装 vitepress。
+
+**根因**：创建时框架预设被识别成了 VitePress，构建命令和产物目录都被带偏。这个项目是 Vite + React，预设应为 `None` 或 `Vite`。
 
 ## 项目结构
 
